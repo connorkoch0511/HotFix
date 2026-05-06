@@ -1,36 +1,193 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HotFix — IT Helpdesk & Ticketing System
+
+A full-stack IT helpdesk application built to demonstrate enterprise-grade engineering practices: role-based access control, immutable audit logging, and a complete ticket lifecycle — all deployed on Vercel.
+
+**Live demo:** https://hotfix-eta.vercel.app
+
+---
+
+## Features
+
+- **Ticket lifecycle management** — create, assign, update status (open → in progress → resolved/closed), set priority and category
+- **Role-based access control (RBAC)**
+
+  | Role | Create Tickets | View All Tickets | Update Any Ticket | Assign Technician | Admin Panel |
+  |------|:-:|:-:|:-:|:-:|:-:|
+  | `end_user` | ✓ | own only | own only | — | — |
+  | `technician` | ✓ | ✓ | ✓ | — | — |
+  | `admin` | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+- **Immutable audit trail** — every field change (status, priority, assignee) recorded with before/after values, timestamp, and actor
+- **Internal comments** — threaded comments per ticket with author attribution
+- **Admin panel** — promote/demote user roles, view all registered users
+- **Dashboard** — live stats (open, in progress, resolved, critical) and recent ticket feed
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router, Server Components) |
+| Auth | Clerk (hosted sign-in/sign-up, session management) |
+| Database | Neon (serverless PostgreSQL) |
+| ORM | Drizzle ORM |
+| Styling | Tailwind CSS v4 |
+| E2E Tests | Playwright |
+| Deployment | Vercel |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone and install
+
+```bash
+git clone https://github.com/<your-username>/HotFix.git
+cd HotFix
+npm install
+```
+
+### 2. Configure environment variables
+
+Create `.env.local` in the project root:
+
+```env
+# Neon PostgreSQL
+DATABASE_URL=postgresql://...
+
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+
+# Playwright (for E2E tests only)
+TEST_USER_EMAIL=your@email.com
+TEST_USER_PASSWORD=yourpassword
+```
+
+### 3. Apply the database schema
+
+```bash
+node neon/seed.js   # creates tables and seeds demo data
+```
+
+Or apply just the schema:
+
+```bash
+# Copy neon/schema.sql content and run in Neon SQL editor
+```
+
+### 4. Run locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 — you'll be redirected to Clerk sign-in on first visit.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 5. Promote yourself to admin
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+After signing in for the first time, run this in the Neon SQL editor:
 
-## Learn More
+```sql
+UPDATE profiles SET role = 'admin' WHERE email = 'your@email.com';
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Database schema
 
-## Deploy on Vercel
+```
+profiles          — Clerk user ID (TEXT PK), email, full_name, role, department
+tickets           — id (UUID), title, description, status, priority, category,
+                    created_by → profiles, assigned_to → profiles, timestamps
+ticket_comments   — id, ticket_id → tickets, author_id → profiles, body, created_at
+ticket_audit      — id, ticket_id → tickets, changed_by → profiles,
+                    changes (JSONB), created_at
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### RBAC enforcement
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All access control is enforced server-side in API route handlers (`src/app/api/`). The client never receives privileged data it shouldn't see — roles are checked on every request using the authenticated Clerk session.
+
+### Audit logging
+
+Every `PATCH /api/tickets/[id]` call computes a diff of changed fields and inserts a row into `ticket_audit` with `changes: { field: { from, to } }`. The audit table is append-only — no updates or deletes are issued against it.
+
+### Server vs. Client Components
+
+| Component type | Used for |
+|----------------|---------|
+| Server Components | Data fetching, page layouts, initial render |
+| Client Components | Interactive UI (dropdowns, comment form, role selector) |
+| Route Handlers | REST API consumed by client components |
+
+---
+
+## Running Tests
+
+### Prerequisites
+
+Add to `.env.local`:
+
+```env
+TEST_USER_EMAIL=your@email.com
+TEST_USER_PASSWORD=yourpassword
+```
+
+Install Playwright browsers (first time only):
+
+```bash
+npx playwright install chromium
+```
+
+### Commands
+
+```bash
+npm test              # run all E2E tests headlessly
+npm run test:ui       # open Playwright UI mode
+npm run test:report   # view last HTML report
+```
+
+Screenshots are saved to `e2e/screenshots/` on every test run.
+
+### Test coverage
+
+| Suite | Tests |
+|-------|-------|
+| Dashboard | Stat cards, recent tickets list, New Ticket button, View All link |
+| Tickets list | Table render, status filter, priority filter, click-through to detail |
+| New Ticket | Form fill → submit → redirect to detail page |
+| Ticket detail | Comments tab, audit trail tab, post comment, sidebar metadata |
+| Admin panel | User table, role permissions card, navbar links |
+| Navigation | Navbar on all pages, unauthenticated redirect to sign-in |
+
+---
+
+## Deployment
+
+The app is deployed to Vercel with environment variables set via the Vercel dashboard.
+
+```bash
+vercel --prod   # deploy to production
+```
+
+Required env vars on Vercel: `DATABASE_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`.
+
+---
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server on http://localhost:3000 |
+| `npm run build` | Production build |
+| `npm run lint` | Run ESLint |
+| `npm run db:push` | Push Drizzle schema changes to Neon |
+| `npm test` | Run Playwright E2E tests |
+| `npm run test:ui` | Playwright UI mode |
+| `npm run test:report` | Open last HTML test report |

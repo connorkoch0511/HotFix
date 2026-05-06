@@ -1,0 +1,37 @@
+import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: false,
+  retries: process.env.CI ? 2 : 0,
+  reporter: [['html', { open: 'never' }], ['list']],
+
+  use: {
+    baseURL: 'http://localhost:3000',
+    screenshot: 'on',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
+  },
+
+  projects: [
+    {
+      name: 'setup',
+      testMatch: /global-setup\.ts/,
+    },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+  ],
+
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    timeout: 60000,
+  },
+})
