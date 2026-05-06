@@ -1,19 +1,23 @@
 import { redirect } from 'next/navigation'
-import { createAuthClient } from '@/lib/supabase/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
+import { getDb } from '@/lib/db'
+import { profiles } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 import Navbar from '@/components/Navbar'
 import type { Profile } from '@/lib/types'
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createAuthClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { userId } = await auth()
+  if (!userId) redirect('/sign-in')
 
-  if (!user) redirect('/auth/sign-in')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Get profile, auto-create on first login
+  let profile = await getDb().query.profiles.findFirst({ where: eq(profiles.id, userId) })
+  if (!profile) {
+    const clerkUser = await currentUser()
+    const email = clerkUser?.emailAddresses[0]?.emailAddress ?? ''
+    const fullName = clerkUser?.fullName ?? ''
+    ;[profile] = await getDb().insert(profiles).values({ id: userId, email, fullName }).returning()
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

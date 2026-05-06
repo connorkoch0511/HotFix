@@ -1,21 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, usePathname } from 'next/navigation'
-import { getSupabaseClient } from '@/lib/supabase/client'
+import { usePathname } from 'next/navigation'
+import { UserButton } from '@clerk/nextjs'
 import type { Profile } from '@/lib/types'
-import { Flame, LayoutDashboard, Ticket, ShieldCheck, LogOut } from 'lucide-react'
+import { Flame, LayoutDashboard, Ticket, ShieldCheck } from 'lucide-react'
 
 export default function Navbar({ profile }: { profile: Profile }) {
-  const router = useRouter()
   const pathname = usePathname()
-
-  const signOut = async () => {
-    const supabase = getSupabaseClient()
-    await supabase.auth.signOut()
-    router.push('/auth/sign-in')
-    router.refresh()
-  }
 
   const nav = [
     { href: '/',        label: 'Dashboard', icon: LayoutDashboard },
@@ -60,15 +52,9 @@ export default function Navbar({ profile }: { profile: Profile }) {
 
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-400 hidden sm:block">
-              {profile.full_name || profile.email}
+              {profile.fullName || profile.email}
             </span>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-gray-100 hover:bg-gray-800/50 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
+            <UserButton />
           </div>
         </div>
       </div>

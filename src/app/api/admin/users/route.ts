@@ -1,33 +1,39 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient, createServiceClient } from '@/lib/supabase/server'
+import { auth } from '@clerk/nextjs/server'
+import { getDb } from '@/lib/db'
+import { profiles } from '@/lib/schema'
+import { eq, asc } from 'drizzle-orm'
 import type { Role } from '@/lib/types'
 
 const VALID_ROLES: Role[] = ['admin', 'technician', 'end_user']
 
-export async function PATCH(request: Request) {
-  const supabase = await createAuthClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+async function requireAdmin(userId: string) {
+  const profile = await getDb().query.profiles.findFirst({ where: eq(profiles.id, userId) })
+  return profile?.role === 'admin' ? profile : null
+}
 
-  // Only admins can change roles
-  const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (callerProfile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export async function GET() {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requireAdmin(userId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const users = await getDb().select().from(profiles).orderBy(asc(profiles.createdAt))
+  return NextResponse.json(users)
+}
+
+export async function PATCH(request: Request) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requireAdmin(userId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { user_id, role } = await request.json()
   if (!user_id || !VALID_ROLES.includes(role)) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
-
-  // Prevent admin from changing their own role
-  if (user_id === user.id) {
+  if (user_id === userId) {
     return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
   }
 
-  const service = createServiceClient()
-  const { error } = await service.from('profiles').update({ role }).eq('id', user_id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  await getDb().update(profiles).set({ role }).where(eq(profiles.id, user_id))
   return NextResponse.json({ ok: true })
 }

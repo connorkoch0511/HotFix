@@ -1,16 +1,15 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createAuthClient } from '@/lib/supabase/server'
+import { auth } from '@clerk/nextjs/server'
+import { getDb } from '@/lib/db'
+import { tickets, profiles } from '@/lib/schema'
+import { eq, desc } from 'drizzle-orm'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
-import type { Ticket } from '@/lib/types'
 import { Plus, Ticket as TicketIcon, AlertCircle, Clock, CheckCircle2 } from 'lucide-react'
 
 function StatCard({ label, value, icon: Icon, accent }: {
-  label: string
-  value: number
-  icon: React.ElementType
-  accent: string
+  label: string; value: number; icon: React.ElementType; accent: string
 }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
@@ -26,28 +25,23 @@ function StatCard({ label, value, icon: Icon, accent }: {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createAuthClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/sign-in')
+  const { userId } = await auth()
+  if (!userId) redirect('/sign-in')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const profile = await getDb().query.profiles.findFirst({ where: eq(profiles.id, userId) })
   const isStaff = profile?.role === 'admin' || profile?.role === 'technician'
 
-  // Build base query — staff see all, end_users see their own
-  const base = supabase.from('tickets').select('*')
-  const query = isStaff ? base : base.eq('created_by', user.id)
+  const allTickets = await getDb()
+    .select()
+    .from(tickets)
+    .where(isStaff ? undefined : eq(tickets.createdBy, userId))
+    .orderBy(desc(tickets.createdAt))
 
-  const { data: allTickets } = await query
-
-  const tickets = (allTickets ?? []) as Ticket[]
-  const open        = tickets.filter(t => t.status === 'open').length
-  const inProgress  = tickets.filter(t => t.status === 'in_progress').length
-  const resolved    = tickets.filter(t => t.status === 'resolved').length
-  const critical    = tickets.filter(t => t.priority === 'critical' && t.status !== 'closed' && t.status !== 'resolved').length
-
-  const recent = tickets
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 8)
+  const open       = allTickets.filter(t => t.status === 'open').length
+  const inProgress = allTickets.filter(t => t.status === 'in_progress').length
+  const resolved   = allTickets.filter(t => t.status === 'resolved').length
+  const critical   = allTickets.filter(t => t.priority === 'critical' && t.status !== 'closed' && t.status !== 'resolved').length
+  const recent     = allTickets.slice(0, 8)
 
   return (
     <div className="space-y-8">
@@ -96,9 +90,8 @@ export default async function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-100 truncate">{ticket.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    {' · '}
-                    {ticket.category}
+                    {new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {' · '}{ticket.category}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

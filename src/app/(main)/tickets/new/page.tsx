@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getSupabaseClient } from '@/lib/supabase/client'
 import type { Priority, Category } from '@/lib/types'
 import { ArrowLeft } from 'lucide-react'
 
@@ -36,28 +35,21 @@ export default function NewTicketPage() {
     setError(null)
     setLoading(true)
 
-    const supabase = getSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/auth/sign-in'); return }
+    const res = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description, category, priority }),
+    })
 
-    const { data, error } = await supabase
-      .from('tickets')
-      .insert({ title, description, category, priority, created_by: user.id })
-      .select('id')
-      .single()
-
-    if (error) {
-      setError(error.message)
+    if (!res.ok) {
+      const { error } = await res.json()
+      setError(error ?? 'Something went wrong')
       setLoading(false)
-    } else {
-      // Write audit entry via service API
-      await fetch('/api/tickets/audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticket_id: data.id, action: 'created' }),
-      })
-      router.push(`/tickets/${data.id}`)
+      return
     }
+
+    const { id } = await res.json()
+    router.push(`/tickets/${id}`)
   }
 
   return (
@@ -104,9 +96,7 @@ export default function NewTicketPage() {
                 onChange={(e) => setCategory(e.target.value as Category)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-red-500 transition-colors"
               >
-                {CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
 
@@ -117,18 +107,14 @@ export default function NewTicketPage() {
                 onChange={(e) => setPriority(e.target.value as Priority)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-red-500 transition-colors"
               >
-                {PRIORITIES.map(p => (
-                  <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>
-                ))}
+                {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label} — {p.desc}</option>)}
               </select>
             </div>
           </div>
         </div>
 
         {error && (
-          <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">
-            {error}
-          </p>
+          <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">{error}</p>
         )}
 
         <div className="flex items-center gap-3">
@@ -139,12 +125,7 @@ export default function NewTicketPage() {
           >
             {loading ? 'Submitting…' : 'Submit Ticket'}
           </button>
-          <Link
-            href="/tickets"
-            className="text-sm text-gray-400 hover:text-gray-100 transition-colors"
-          >
-            Cancel
-          </Link>
+          <Link href="/tickets" className="text-sm text-gray-400 hover:text-gray-100 transition-colors">Cancel</Link>
         </div>
       </form>
     </div>

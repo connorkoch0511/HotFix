@@ -1,9 +1,13 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createAuthClient } from '@/lib/supabase/server'
+import { auth } from '@clerk/nextjs/server'
+import { getDb } from '@/lib/db'
+import { tickets, profiles } from '@/lib/schema'
+import { eq, and, desc } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
-import type { Ticket, Status, Priority, Category } from '@/lib/types'
+import type { Status, Priority, Category } from '@/lib/types'
 import { Plus } from 'lucide-react'
 
 const STATUSES: Status[]    = ['open', 'in_progress', 'resolved', 'closed']
@@ -16,30 +20,36 @@ export default async function TicketsPage({
   searchParams: Promise<{ status?: string; priority?: string; category?: string }>
 }) {
   const params = await searchParams
-  const supabase = await createAuthClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/sign-in')
+  const { userId } = await auth()
+  if (!userId) redirect('/sign-in')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const db = getDb()
+  const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, userId) })
   const isStaff = profile?.role === 'admin' || profile?.role === 'technician'
 
-  let query = supabase
-    .from('tickets')
-    .select('*, creator:profiles!tickets_created_by_fkey(full_name, email), assignee:profiles!tickets_assigned_to_fkey(full_name, email)')
-    .order('created_at', { ascending: false })
+  const creators  = alias(profiles, 'creators')
+  const assignees = alias(profiles, 'assignees')
 
-  if (!isStaff) query = query.eq('created_by', user.id)
-  if (params.status   && STATUSES.includes(params.status as Status))       query = query.eq('status', params.status)
-  if (params.priority && PRIORITIES.includes(params.priority as Priority)) query = query.eq('priority', params.priority)
-  if (params.category && CATEGORIES.includes(params.category as Category)) query = query.eq('category', params.category)
-
-  const { data } = await query
-  const tickets = (data ?? []) as Ticket[]
+  const conditions = []
+  if (!isStaff) conditions.push(eq(tickets.createdBy, userId))
+  if (params.status   && STATUSES.includes(params.status as Status))       conditions.push(eq(tickets.status, params.status as Status))
+  if (params.priority && PRIORITIES.includes(params.priority as Priority)) conditions.push(eq(tickets.priority, params.priority as Priority))
+  if (params.category && CATEGORIES.includes(params.category as Category)) conditions.push(eq(tickets.category, params.category as Category))
+  const rows = await db
+    .select({
+      ticket:   tickets,
+      creator:  { fullName: creators.fullName, email: creators.email },
+      assignee: { fullName: assignees.fullName, email: assignees.email },
+    })
+    .from(tickets)
+    .leftJoin(creators,  eq(tickets.createdBy,  creators.id))
+    .leftJoin(assignees, eq(tickets.assignedTo, assignees.id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(tickets.createdAt))
 
   const buildUrl = (key: string, val: string) => {
     const p = new URLSearchParams(params as Record<string, string>)
-    if (p.get(key) === val) p.delete(key)
-    else p.set(key, val)
+    if (p.get(key) === val) { p.delete(key) } else { p.set(key, val) }
     return `/tickets?${p.toString()}`
   }
 
@@ -56,54 +66,34 @@ export default async function TicketsPage({
         </Link>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-2">
         {STATUSES.map(s => (
-          <Link
-            key={s}
-            href={buildUrl('status', s)}
+          <Link key={s} href={buildUrl('status', s)}
             className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-              params.status === s
-                ? 'bg-red-600 border-red-500 text-white'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
+              params.status === s ? 'bg-red-600 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
             }`}
-          >
-            {s.replace('_', ' ')}
-          </Link>
+          >{s.replace('_', ' ')}</Link>
         ))}
         <span className="w-px bg-gray-700 mx-1" />
         {PRIORITIES.map(p => (
-          <Link
-            key={p}
-            href={buildUrl('priority', p)}
+          <Link key={p} href={buildUrl('priority', p)}
             className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-              params.priority === p
-                ? 'bg-red-600 border-red-500 text-white'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
+              params.priority === p ? 'bg-red-600 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
             }`}
-          >
-            {p}
-          </Link>
+          >{p}</Link>
         ))}
         <span className="w-px bg-gray-700 mx-1" />
         {CATEGORIES.map(c => (
-          <Link
-            key={c}
-            href={buildUrl('category', c)}
+          <Link key={c} href={buildUrl('category', c)}
             className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-              params.category === c
-                ? 'bg-red-600 border-red-500 text-white'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
+              params.category === c ? 'bg-red-600 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-100'
             }`}
-          >
-            {c}
-          </Link>
+          >{c}</Link>
         ))}
       </div>
 
-      {/* Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        {tickets.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="px-6 py-16 text-center text-gray-500 text-sm">No tickets match your filters.</div>
         ) : (
           <table className="w-full text-sm">
@@ -118,7 +108,7 @@ export default async function TicketsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {tickets.map(ticket => (
+              {rows.map(({ ticket, assignee }) => (
                 <tr key={ticket.id} className="hover:bg-gray-800/50 transition-colors group">
                   <td className="px-6 py-4">
                     <Link href={`/tickets/${ticket.id}`} className="font-medium text-gray-100 group-hover:text-red-400 transition-colors">
@@ -130,11 +120,11 @@ export default async function TicketsPage({
                   <td className="px-4 py-4"><StatusBadge status={ticket.status} /></td>
                   {isStaff && (
                     <td className="px-4 py-4 text-gray-400 text-xs hidden lg:table-cell">
-                      {ticket.assignee ? (ticket.assignee as { full_name: string; email: string }).full_name || (ticket.assignee as { full_name: string; email: string }).email : '—'}
+                      {assignee?.fullName || assignee?.email || '—'}
                     </td>
                   )}
                   <td className="px-4 py-4 text-gray-400 text-xs hidden lg:table-cell">
-                    {new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </td>
                 </tr>
               ))}
@@ -143,7 +133,7 @@ export default async function TicketsPage({
         )}
       </div>
 
-      <p className="text-xs text-gray-600 text-right">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
+      <p className="text-xs text-gray-600 text-right">{rows.length} ticket{rows.length !== 1 ? 's' : ''}</p>
     </div>
   )
 }

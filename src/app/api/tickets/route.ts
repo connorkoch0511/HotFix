@@ -1,18 +1,47 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabase/server'
+import { auth } from '@clerk/nextjs/server'
+import { getDb } from '@/lib/db'
+import { tickets, profiles, ticketAudit } from '@/lib/schema'
+import { eq, desc } from 'drizzle-orm'
+import type { Category, Priority } from '@/lib/types'
 
 export async function GET() {
-  const supabase = await createAuthClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const db = getDb()
+  const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, userId) })
   const isStaff = profile?.role === 'admin' || profile?.role === 'technician'
 
-  let query = supabase.from('tickets').select('*').order('created_at', { ascending: false })
-  if (!isStaff) query = query.eq('created_by', user.id)
+  const rows = await db
+    .select()
+    .from(tickets)
+    .where(isStaff ? undefined : eq(tickets.createdBy, userId))
+    .orderBy(desc(tickets.createdAt))
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(rows)
+}
+
+export async function POST(request: Request) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { title, description, category, priority } = await request.json() as {
+    title: string; description: string; category: Category; priority: Priority
+  }
+
+  const db = getDb()
+  const [ticket] = await db
+    .insert(tickets)
+    .values({ title, description, category, priority, createdBy: userId })
+    .returning()
+
+  await db.insert(ticketAudit).values({
+    ticketId: ticket.id,
+    userId,
+    action: 'created',
+    changes: {},
+  })
+
+  return NextResponse.json({ id: ticket.id }, { status: 201 })
 }

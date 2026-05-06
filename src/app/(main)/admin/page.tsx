@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseClient } from '@/lib/supabase/client'
-import type { Profile, Role } from '@/lib/types'
+import type { Role } from '@/lib/types'
 import { ShieldCheck, UserCog } from 'lucide-react'
 
-const ROLES: Role[] = ['admin', 'technician', 'end_user']
+interface UserRow {
+  id: string; email: string; fullName: string
+  role: Role; department: string | null; createdAt: string
+}
 
+const ROLES: Role[] = ['admin', 'technician', 'end_user']
 const roleColor: Record<Role, string> = {
   admin:      'text-red-400',
   technician: 'text-blue-400',
@@ -16,23 +19,24 @@ const roleColor: Record<Role, string> = {
 
 export default function AdminPage() {
   const router = useRouter()
-  const [users, setUsers]       = useState<Profile[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState<string | null>(null)
+  const [users, setUsers]     = useState<UserRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState<string | null>(null)
   const [currentId, setCurrentId] = useState<string>('')
 
   useEffect(() => {
     const init = async () => {
-      const supabase = getSupabaseClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/sign-in'); return }
-      setCurrentId(user.id)
+      const [profileRes, usersRes] = await Promise.all([
+        fetch('/api/profile'),
+        fetch('/api/admin/users'),
+      ])
+      if (!profileRes.ok) { router.push('/'); return }
+      const profile = await profileRes.json()
+      if (profile.role !== 'admin') { router.push('/'); return }
+      setCurrentId(profile.id)
 
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      if (profile?.role !== 'admin') { router.push('/'); return }
-
-      const { data } = await supabase.from('profiles').select('*').order('created_at')
-      setUsers((data ?? []) as Profile[])
+      if (!usersRes.ok) { router.push('/'); return }
+      setUsers(await usersRes.json())
       setLoading(false)
     }
     init()
@@ -40,14 +44,12 @@ export default function AdminPage() {
 
   const changeRole = async (userId: string, role: Role) => {
     setSaving(userId)
-    const res = await fetch('/api/admin/users', {
+    await fetch('/api/admin/users', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, role }),
     })
-    if (res.ok) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u))
-    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u))
     setSaving(null)
   }
 
@@ -88,12 +90,12 @@ export default function AdminPage() {
             {users.map(user => (
               <tr key={user.id} className={user.id === currentId ? 'bg-gray-800/30' : ''}>
                 <td className="px-6 py-4">
-                  <p className="font-medium text-gray-100">{user.full_name || '—'}</p>
+                  <p className="font-medium text-gray-100">{user.fullName || '—'}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </td>
                 <td className="px-4 py-4 text-gray-400 text-xs hidden md:table-cell">{user.department || '—'}</td>
                 <td className="px-4 py-4 text-gray-400 text-xs hidden lg:table-cell">
-                  {new Date(user.created_at).toLocaleDateString()}
+                  {new Date(user.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-4">
                   {user.id === currentId ? (
@@ -102,15 +104,13 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2">
                       <select
                         value={user.role}
-                        onChange={(e) => changeRole(user.id, e.target.value as Role)}
+                        onChange={e => changeRole(user.id, e.target.value as Role)}
                         disabled={saving === user.id}
                         className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-red-500 transition-colors disabled:opacity-50"
                       >
                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
-                      {saving === user.id && (
-                        <div className="w-3.5 h-3.5 border border-red-600 border-t-transparent rounded-full animate-spin" />
-                      )}
+                      {saving === user.id && <div className="w-3.5 h-3.5 border border-red-600 border-t-transparent rounded-full animate-spin" />}
                     </div>
                   )}
                 </td>
@@ -124,12 +124,12 @@ export default function AdminPage() {
         <h3 className="font-semibold text-gray-100 mb-3">Role Permissions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           {[
-            { role: 'end_user',   color: 'border-gray-700', label: 'End User', perms: ['Submit tickets', 'View own tickets', 'Post comments'] },
-            { role: 'technician', color: 'border-blue-800', label: 'Technician', perms: ['All End User permissions', 'View all tickets', 'Update status & priority', 'Assign tickets', 'Internal notes', 'View audit trail'] },
-            { role: 'admin',      color: 'border-red-800',  label: 'Admin', perms: ['All Technician permissions', 'Manage user roles', 'Full audit access'] },
-          ].map(({ role, color, label, perms }) => (
+            { role: 'end_user',   color: 'border-gray-700', perms: ['Submit tickets', 'View own tickets', 'Post comments'] },
+            { role: 'technician', color: 'border-blue-800', perms: ['All End User perms', 'View all tickets', 'Update status & priority', 'Assign tickets', 'Internal notes', 'View audit trail'] },
+            { role: 'admin',      color: 'border-red-800',  perms: ['All Technician perms', 'Manage user roles', 'Full audit access'] },
+          ].map(({ role, color, perms }) => (
             <div key={role} className={`border ${color} rounded-xl p-4`}>
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${roleColor[role as Role]}`}>{label}</p>
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${roleColor[role as Role]}`}>{role}</p>
               <ul className="space-y-1">
                 {perms.map(p => (
                   <li key={p} className="text-xs text-gray-400 flex items-start gap-1.5">
