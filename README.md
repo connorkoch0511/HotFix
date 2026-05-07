@@ -6,6 +6,18 @@ A full-stack IT helpdesk application built to demonstrate enterprise-grade engin
 
 ---
 
+## Screenshots
+
+| Dashboard | Tickets |
+|-----------|---------|
+| ![Dashboard](e2e/screenshots/dashboard.png) | ![Tickets](e2e/screenshots/tickets-list.png) |
+
+| Ticket Detail | Admin Panel |
+|---------------|-------------|
+| ![Ticket Detail](e2e/screenshots/ticket-detail-comments.png) | ![Admin Panel](e2e/screenshots/admin-panel.png) |
+
+---
+
 ## Features
 
 - **Ticket lifecycle management** — create, assign, update status (open → in progress → resolved/closed), set priority and category
