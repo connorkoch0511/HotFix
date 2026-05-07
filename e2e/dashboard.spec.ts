@@ -6,14 +6,14 @@ const SCREENSHOTS = path.join(__dirname, 'screenshots')
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 15000 })
   })
 
   test('shows all four stat cards', async ({ page }) => {
-    await expect(page.getByText('Open')).toBeVisible()
-    await expect(page.getByText('In Progress')).toBeVisible()
-    await expect(page.getByText('Resolved')).toBeVisible()
-    await expect(page.getByText('Critical')).toBeVisible()
+    await expect(page.getByText('Open').first()).toBeVisible()
+    await expect(page.getByText('In Progress').first()).toBeVisible()
+    await expect(page.getByText('Resolved').first()).toBeVisible()
+    await expect(page.getByText('Critical').first()).toBeVisible()
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'dashboard.png'),
@@ -39,6 +39,7 @@ test.describe('Dashboard', () => {
 
   test('View all link navigates to ticket list', async ({ page }) => {
     await page.getByRole('link', { name: /view all/i }).click()
+    await page.waitForURL('/tickets', { timeout: 15000 })
     await expect(page).toHaveURL('/tickets')
   })
 })

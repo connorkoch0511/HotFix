@@ -50,6 +50,7 @@ test.describe('Tickets List', () => {
   test('clicking a ticket row opens the detail page', async ({ page }) => {
     const firstTicketLink = page.locator('tbody tr a').first()
     await firstTicketLink.click()
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 15000 })
     await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+/)
     await expect(page.getByText('Description')).toBeVisible()
   })
@@ -75,7 +76,8 @@ test.describe('New Ticket', () => {
 
     // Should redirect to the new ticket's detail page
     await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 10000 })
-    await expect(page.getByText(title)).toBeVisible()
+    await page.waitForLoadState('load')
+    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 })
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'ticket-detail.png'),

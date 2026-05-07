@@ -6,12 +6,13 @@ const SCREENSHOTS = path.join(__dirname, 'screenshots')
 test.describe('Admin Panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/admin')
-    await page.waitForLoadState('networkidle')
+    // Admin page is a client component — wait for data to load (spinner → content)
+    await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 15000 })
   })
 
   test('shows user management table', async ({ page }) => {
     await expect(page.getByText('Admin Panel')).toBeVisible()
-    await expect(page.getByText('Manage user roles')).toBeVisible()
+    await expect(page.getByText('Manage user roles and access permissions.')).toBeVisible()
     await expect(page.getByRole('table')).toBeVisible()
 
     await page.screenshot({
@@ -22,9 +23,10 @@ test.describe('Admin Panel', () => {
 
   test('shows role permissions reference card', async ({ page }) => {
     await expect(page.getByText('Role Permissions')).toBeVisible()
-    await expect(page.getByText('end_user')).toBeVisible()
-    await expect(page.getByText('technician')).toBeVisible()
-    await expect(page.getByText('admin')).toBeVisible()
+    // Scope to <p> elements to avoid matching <option> elements in role dropdowns
+    await expect(page.locator('p', { hasText: 'end_user' })).toBeVisible()
+    await expect(page.locator('p', { hasText: 'technician' })).toBeVisible()
+    await expect(page.locator('p', { hasText: 'admin' }).first()).toBeVisible()
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'admin-roles.png'),
@@ -43,7 +45,7 @@ test.describe('Navigation', () => {
     for (const url of ['/', '/tickets', '/admin']) {
       await page.goto(url)
       await page.waitForLoadState('networkidle')
-      await expect(page.getByText('HotFix')).toBeVisible()
+      await expect(page.getByRole('link', { name: 'HotFix' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
     }

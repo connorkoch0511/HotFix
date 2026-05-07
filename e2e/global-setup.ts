@@ -1,39 +1,62 @@
-import { chromium, type FullConfig } from '@playwright/test'
+import { test as setup, expect } from '@playwright/test'
+import { createClerkClient } from '@clerk/backend'
+import { neon } from '@neondatabase/serverless'
+import path from 'path'
 
-export default async function globalSetup(_config: FullConfig) {
-  const email    = process.env.TEST_USER_EMAIL
-  const password = process.env.TEST_USER_PASSWORD
+const authFile = path.join(__dirname, '.auth/user.json')
 
-  if (!email || !password) {
-    throw new Error(
-      'Missing TEST_USER_EMAIL or TEST_USER_PASSWORD in .env.local.\n' +
-      'Add them to run the Playwright tests:\n' +
-      '  TEST_USER_EMAIL=you@example.com\n' +
-      '  TEST_USER_PASSWORD=yourpassword'
-    )
+setup('authenticate', async ({ page }) => {
+  const secretKey   = process.env.CLERK_SECRET_KEY
+  const email       = process.env.TEST_USER_EMAIL
+  const databaseUrl = process.env.DATABASE_URL
+
+  if (!secretKey || !email) {
+    throw new Error('Missing CLERK_SECRET_KEY or TEST_USER_EMAIL in .env.local')
+  }
+  if (!databaseUrl) {
+    throw new Error('Missing DATABASE_URL in .env.local')
   }
 
-  const browser = await chromium.launch()
-  const page    = await browser.newPage()
+  const clerk = createClerkClient({ secretKey })
 
-  await page.goto('http://localhost:3000/sign-in')
+  const { data: users } = await clerk.users.getUserList({ emailAddress: [email] })
+  if (!users.length) throw new Error(`No Clerk user found with email: ${email}`)
 
-  // Clerk renders the sign-in form asynchronously
-  await page.waitForSelector('input[name="identifier"]', { timeout: 15000 })
-  await page.fill('input[name="identifier"]', email)
-  await page.getByRole('button', { name: /continue/i }).click()
+  const userId = users[0].id
 
-  // Second step: password
-  await page.waitForSelector('input[type="password"]', { timeout: 10000 })
-  await page.fill('input[type="password"]', password)
-  await page.getByRole('button', { name: /continue/i }).click()
+  const { token } = await clerk.signInTokens.createSignInToken({
+    userId,
+    expiresInSeconds: 60,
+  })
 
-  // Wait for redirect to dashboard
-  await page.waitForURL('http://localhost:3000/', { timeout: 15000 })
+  // Load the sign-in page so Clerk's JS SDK is present on the window
+  await page.goto('/sign-in')
+  await page.waitForFunction(() => !!(window as any).Clerk?.loaded, { timeout: 15000 })
 
-  // Save authenticated session for all tests
-  await page.context().storageState({ path: 'e2e/.auth/user.json' })
-  await browser.close()
+  // Use Clerk's browser SDK to sign in with the token, bypassing device verification
+  await page.evaluate(async (signInToken) => {
+    const clerkInstance = (window as any).Clerk
+    const result = await clerkInstance.client.signIn.create({
+      strategy: 'ticket',
+      ticket: signInToken,
+    })
+    if (result.status !== 'complete') {
+      throw new Error(`Unexpected sign-in status: ${result.status}`)
+    }
+    await clerkInstance.setActive({ session: result.createdSessionId })
+  }, token)
 
-  console.log('✓ Auth session saved')
-}
+  // Navigate to home — triggers profile auto-creation via the layout
+  await page.goto('/')
+  await expect(page).toHaveURL('/')
+
+  // Warm up other routes so Next.js dev compiles them before test workers start
+  await page.goto('/tickets')
+  await page.goto('/admin')
+
+  await page.context().storageState({ path: authFile })
+
+  // Promote test user to admin so admin-gated tests pass
+  const sql = neon(databaseUrl)
+  await sql`UPDATE profiles SET role = 'admin' WHERE id = ${userId}`
+})

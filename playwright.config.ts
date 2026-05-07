@@ -1,8 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
+import { config as loadEnv } from 'dotenv'
+
+loadEnv({ path: '.env.local' })
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: false,
+fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
   reporter: [['html', { open: 'never' }], ['list']],
 
@@ -17,6 +20,7 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /global-setup\.ts/,
+      use: { storageState: undefined },
     },
     {
       name: 'chromium',

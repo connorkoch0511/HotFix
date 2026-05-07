@@ -64,20 +64,11 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 
 # Playwright (for E2E tests only)
 TEST_USER_EMAIL=your@email.com
-TEST_USER_PASSWORD=yourpassword
 ```
 
 ### 3. Apply the database schema
 
-```bash
-node neon/seed.js   # creates tables and seeds demo data
-```
-
-Or apply just the schema:
-
-```bash
-# Copy neon/schema.sql content and run in Neon SQL editor
-```
+Copy the contents of `neon/schema.sql` and run it in the Neon SQL editor (or any Postgres client connected to your database).
 
 ### 4. Run locally
 
@@ -136,8 +127,9 @@ Add to `.env.local`:
 
 ```env
 TEST_USER_EMAIL=your@email.com
-TEST_USER_PASSWORD=yourpassword
 ```
+
+The test suite authenticates via Clerk sign-in tokens (no password needed — the Clerk backend SDK issues a one-time token directly).
 
 Install Playwright browsers (first time only):
 
