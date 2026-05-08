@@ -6,8 +6,8 @@ const SCREENSHOTS = path.join(__dirname, 'screenshots')
 test.describe('Admin Panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/admin')
-    // Admin page is a client component — wait for data to load (spinner → content)
-    await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 15000 })
+    // Admin page fetches from Clerk + DB; allow up to 30s for the spinner to resolve
+    await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 30000 })
   })
 
   test('shows user management table', async ({ page }) => {

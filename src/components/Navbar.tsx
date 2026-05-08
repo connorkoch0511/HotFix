@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
 import type { Profile } from '@/lib/types'
-import { Flame, LayoutDashboard, Ticket, ShieldCheck } from 'lucide-react'
+import { Flame, LayoutDashboard, Ticket, ShieldCheck, Settings2 } from 'lucide-react'
 
 export default function Navbar({ profile }: { profile: Profile }) {
   const pathname = usePathname()
@@ -13,7 +13,10 @@ export default function Navbar({ profile }: { profile: Profile }) {
     { href: '/',        label: 'Dashboard', icon: LayoutDashboard },
     { href: '/tickets', label: 'Tickets',   icon: Ticket },
     ...(profile.role === 'admin'
-      ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck }]
+      ? [
+          { href: '/admin',                   label: 'Admin',    icon: ShieldCheck },
+          { href: '/settings/organization',   label: 'Settings', icon: Settings2   },
+        ]
       : []),
   ]
 

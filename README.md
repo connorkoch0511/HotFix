@@ -175,7 +175,7 @@ Screenshots are saved to `e2e/screenshots/` on every test run.
 | Ticket detail | Comments tab, audit trail tab, post comment, sidebar metadata |
 | Admin panel | User table, role permissions card, navbar links |
 | Navigation | Navbar on all pages, unauthenticated redirect to sign-in |
-| Organizations | Org setup page, org switcher in navbar, org-scoped tickets & dashboard, member scoping in admin panel, unauthenticated API returns 401 |
+| Organizations | Org setup (create + invite panels), org switcher, Settings page with OrganizationProfile, org-scoped tickets & dashboard, member scoping in admin panel, unauthenticated API returns 401 |
 
 ---
 

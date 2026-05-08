@@ -1,11 +1,31 @@
 import { test as setup, expect } from '@playwright/test'
 import { createClerkClient } from '@clerk/backend'
 import { neon } from '@neondatabase/serverless'
+import { Page } from '@playwright/test'
 import path from 'path'
 
 const authFile = path.join(__dirname, '.auth/user.json')
 
-setup.setTimeout(120000)
+setup.setTimeout(180000)
+
+// Navigate to a route and wait for specific content to confirm webpack compiled it.
+// Retries on failure so a mid-recompile empty-manifest response doesn't break setup.
+async function warmup(page: Page, url: string, expectedText: string, timeout = 30000) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      await page.goto(url)
+      await page.waitForLoadState('load')
+      await page.waitForSelector(`text=${expectedText}`, { timeout })
+      return
+    } catch {
+      if (attempt < 3) await page.waitForTimeout(3000)
+    }
+  }
+  // Final attempt — throw if still not rendered
+  await page.goto(url)
+  await page.waitForLoadState('load')
+  await page.waitForSelector(`text=${expectedText}`, { timeout })
+}
 
 setup('authenticate', async ({ page }) => {
   const secretKey   = process.env.CLERK_SECRET_KEY
@@ -85,19 +105,21 @@ setup('authenticate', async ({ page }) => {
     `
   }
 
-  // Warm up routes so Next.js/webpack compiles them before test workers start
-  await page.goto('/tickets')
-  await page.waitForLoadState('load')
-  await page.goto('/tickets/new')
-  await page.waitForLoadState('load')
-  await page.goto('/admin')
-  await page.waitForLoadState('load')
+  // Warm up every route so webpack compiles them before test workers start.
+  // warmup() waits for actual page content and retries if webpack is mid-recompile.
+  await warmup(page, '/',                        'Dashboard')
+  await warmup(page, '/tickets',                 'Tickets')
+  await warmup(page, '/tickets/new',             'New Ticket')
+  await warmup(page, '/admin',                   'Admin Panel')
+  await warmup(page, '/settings/organization',   'Organization Settings')
+  // Also warm up the catch-all subroute so Clerk's tab navigation compiles
+  await warmup(page, '/settings/organization/members', 'Organization Settings')
+  await warmup(page, '/org-setup',               'Get started with HotFix')
 
-  // Warm up the ticket detail route to pre-compile the dynamic [id] segment
+  // Warm up the ticket detail route using the seeded ticket
   const [firstTicket] = await sql`SELECT id FROM tickets WHERE organization_id = ${orgId} LIMIT 1`
   if (firstTicket) {
-    await page.goto(`/tickets/${firstTicket.id}`)
-    await page.waitForLoadState('load')
+    await warmup(page, `/tickets/${firstTicket.id}`, 'Description')
   }
 
   await page.context().storageState({ path: authFile })

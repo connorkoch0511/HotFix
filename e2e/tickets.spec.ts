@@ -73,11 +73,13 @@ test.describe('New Ticket', () => {
     await page.locator('select').nth(1).selectOption('high')
 
     await page.getByRole('button', { name: /submit ticket/i }).click()
+    // Confirm the form entered submitting state (guards against HMR page reload resetting the form)
+    await expect(page.getByRole('button', { name: /submitting/i })).toBeVisible({ timeout: 10000 })
 
     // Should redirect to the new ticket's detail page
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 10000 })
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 20000 })
     await page.waitForLoadState('load')
-    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(title)).toBeVisible({ timeout: 20000 })
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'ticket-detail.png'),
@@ -92,8 +94,8 @@ test.describe('Ticket Detail', () => {
     await page.waitForLoadState('load')
     await expect(page.locator('tbody tr a').first()).toBeVisible({ timeout: 15000 })
     await page.locator('tbody tr a').first().click()
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 15000 })
-    await expect(page.getByText('Description')).toBeVisible({ timeout: 15000 })
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 20000 })
+    await expect(page.getByText('Description')).toBeVisible({ timeout: 20000 })
   })
 
   test('shows description, comments, and audit tabs', async ({ page }) => {
