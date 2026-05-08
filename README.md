@@ -16,11 +16,16 @@ A full-stack IT helpdesk application built to demonstrate enterprise-grade engin
 |---------------|-------------|
 | ![Ticket Detail](e2e/screenshots/ticket-detail-comments.png) | ![Admin Panel](e2e/screenshots/admin-panel.png) |
 
+| Org Setup | Organization Settings |
+|-----------|-----------------------|
+| ![Org Setup](e2e/screenshots/org-setup.png) | ![Org Settings](e2e/screenshots/org-settings.png) |
+
 ---
 
 ## Features
 
 - **Multi-tenant organizations** — users belong to a Clerk organization; tickets, dashboard stats, and admin data are all scoped to the active org — no cross-company data leakage
+- **Invite-based onboarding** — admins invite team members by email from the Organization Settings page; new users land directly in the org after accepting; first-time users without an invite see setup instructions
 - **Ticket lifecycle management** — create, assign, update status (open → in progress → resolved/closed), set priority and category
 - **Role-based access control (RBAC)**
 
