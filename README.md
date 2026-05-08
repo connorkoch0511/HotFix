@@ -20,6 +20,7 @@ A full-stack IT helpdesk application built to demonstrate enterprise-grade engin
 
 ## Features
 
+- **Multi-tenant organizations** — users belong to a Clerk organization; tickets, dashboard stats, and admin data are all scoped to the active org — no cross-company data leakage
 - **Ticket lifecycle management** — create, assign, update status (open → in progress → resolved/closed), set priority and category
 - **Role-based access control (RBAC)**
 
@@ -31,8 +32,8 @@ A full-stack IT helpdesk application built to demonstrate enterprise-grade engin
 
 - **Immutable audit trail** — every field change (status, priority, assignee) recorded with before/after values, timestamp, and actor
 - **Internal comments** — threaded comments per ticket with author attribution
-- **Admin panel** — promote/demote user roles, view all registered users
-- **Dashboard** — live stats (open, in progress, resolved, critical) and recent ticket feed
+- **Admin panel** — promote/demote user roles, view only members of the current organization
+- **Dashboard** — live stats (open, in progress, resolved, critical) and recent ticket feed, scoped to the active org
 
 ---
 
@@ -106,12 +107,17 @@ UPDATE profiles SET role = 'admin' WHERE email = 'your@email.com';
 
 ```
 profiles          — Clerk user ID (TEXT PK), email, full_name, role, department
-tickets           — id (UUID), title, description, status, priority, category,
-                    created_by → profiles, assigned_to → profiles, timestamps
+tickets           — id (UUID), organization_id (Clerk org), title, description,
+                    status, priority, category, created_by → profiles,
+                    assigned_to → profiles, timestamps
 ticket_comments   — id, ticket_id → tickets, author_id → profiles, body, created_at
 ticket_audit      — id, ticket_id → tickets, changed_by → profiles,
                     changes (JSONB), created_at
 ```
+
+### Organization scoping
+
+Every API route reads `orgId` from the Clerk session and filters all DB queries by `organization_id`. This happens at the route-handler level — there is no client-side filtering. An authenticated user from a different org cannot read or write another org's tickets, even with a valid session token.
 
 ### RBAC enforcement
 
@@ -169,6 +175,7 @@ Screenshots are saved to `e2e/screenshots/` on every test run.
 | Ticket detail | Comments tab, audit trail tab, post comment, sidebar metadata |
 | Admin panel | User table, role permissions card, navbar links |
 | Navigation | Navbar on all pages, unauthenticated redirect to sign-in |
+| Organizations | Org setup page, org switcher in navbar, org-scoped tickets & dashboard, member scoping in admin panel, unauthenticated API returns 401 |
 
 ---
 

@@ -6,11 +6,11 @@ const SCREENSHOTS = path.join(__dirname, 'screenshots')
 test.describe('Tickets List', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 15000 })
   })
 
   test('renders ticket table with rows', async ({ page }) => {
-    await expect(page.getByRole('table')).toBeVisible()
     const rows = page.locator('tbody tr')
     await expect(rows.first()).toBeVisible()
 
@@ -22,7 +22,7 @@ test.describe('Tickets List', () => {
 
   test('filter by status narrows results', async ({ page }) => {
     await page.getByRole('link', { name: 'open' }).first().click()
-    await page.waitForLoadState('networkidle')
+    await page.waitForURL(/status=open/, { timeout: 15000 })
 
     await expect(page).toHaveURL(/status=open/)
 
@@ -38,7 +38,7 @@ test.describe('Tickets List', () => {
 
   test('filter by priority', async ({ page }) => {
     await page.getByRole('link', { name: 'critical' }).click()
-    await page.waitForLoadState('networkidle')
+    await page.waitForURL(/priority=critical/, { timeout: 15000 })
     await expect(page).toHaveURL(/priority=critical/)
 
     await page.screenshot({
@@ -52,14 +52,14 @@ test.describe('Tickets List', () => {
     await firstTicketLink.click()
     await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 15000 })
     await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+/)
-    await expect(page.getByText('Description')).toBeVisible()
+    await expect(page.getByText('Description')).toBeVisible({ timeout: 10000 })
   })
 })
 
 test.describe('New Ticket', () => {
   test('creates a ticket and redirects to detail', async ({ page }) => {
     await page.goto('/tickets/new')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'new-ticket-form.png'),
@@ -89,10 +89,11 @@ test.describe('New Ticket', () => {
 test.describe('Ticket Detail', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
+    await expect(page.locator('tbody tr a').first()).toBeVisible({ timeout: 15000 })
     await page.locator('tbody tr a').first().click()
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/)
-    await page.waitForLoadState('networkidle')
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 15000 })
+    await expect(page.getByText('Description')).toBeVisible({ timeout: 15000 })
   })
 
   test('shows description, comments, and audit tabs', async ({ page }) => {

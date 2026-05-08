@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import { getDb } from '@/lib/db'
 import { tickets, profiles } from '@/lib/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import { Plus, Ticket as TicketIcon, AlertCircle, Clock, CheckCircle2 } from 'lucide-react'
@@ -25,16 +25,19 @@ function StatCard({ label, value, icon: Icon, accent }: {
 }
 
 export default async function DashboardPage() {
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  const { userId, orgId } = await auth()
+  if (!userId || !orgId) redirect('/sign-in')
 
   const profile = await getDb().query.profiles.findFirst({ where: eq(profiles.id, userId) })
   const isStaff = profile?.role === 'admin' || profile?.role === 'technician'
 
+  const conditions = [eq(tickets.organizationId, orgId)]
+  if (!isStaff) conditions.push(eq(tickets.createdBy, userId))
+
   const allTickets = await getDb()
     .select()
     .from(tickets)
-    .where(isStaff ? undefined : eq(tickets.createdBy, userId))
+    .where(and(...conditions))
     .orderBy(desc(tickets.createdAt))
 
   const open       = allTickets.filter(t => t.status === 'open').length

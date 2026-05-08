@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
 import type { Profile } from '@/lib/types'
 import { Flame, LayoutDashboard, Ticket, ShieldCheck } from 'lucide-react'
 
@@ -51,9 +51,17 @@ export default function Navbar({ profile }: { profile: Profile }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400 hidden sm:block">
-              {profile.fullName || profile.email}
-            </span>
+            <OrganizationSwitcher
+              hidePersonal
+              afterCreateOrganizationUrl="/"
+              afterSelectOrganizationUrl="/"
+              appearance={{
+                elements: {
+                  rootBox: 'flex items-center',
+                  organizationSwitcherTrigger: 'text-sm text-gray-300 hover:text-gray-100 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-3 py-1.5 transition-colors',
+                },
+              }}
+            />
             <UserButton />
           </div>
         </div>

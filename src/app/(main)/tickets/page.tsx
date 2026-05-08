@@ -20,8 +20,8 @@ export default async function TicketsPage({
   searchParams: Promise<{ status?: string; priority?: string; category?: string }>
 }) {
   const params = await searchParams
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  const { userId, orgId } = await auth()
+  if (!userId || !orgId) redirect('/sign-in')
 
   const db = getDb()
   const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, userId) })
@@ -30,7 +30,7 @@ export default async function TicketsPage({
   const creators  = alias(profiles, 'creators')
   const assignees = alias(profiles, 'assignees')
 
-  const conditions = []
+  const conditions = [eq(tickets.organizationId, orgId)]
   if (!isStaff) conditions.push(eq(tickets.createdBy, userId))
   if (params.status   && STATUSES.includes(params.status as Status))       conditions.push(eq(tickets.status, params.status as Status))
   if (params.priority && PRIORITIES.includes(params.priority as Priority)) conditions.push(eq(tickets.priority, params.priority as Priority))

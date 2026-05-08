@@ -34,6 +34,7 @@ test.describe('Dashboard', () => {
 
   test('New Ticket button navigates to form', async ({ page }) => {
     await page.getByRole('link', { name: /new ticket/i }).first().click()
+    await page.waitForURL('/tickets/new', { timeout: 15000 })
     await expect(page).toHaveURL('/tickets/new')
   })
 

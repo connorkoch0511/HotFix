@@ -13,8 +13,9 @@ export const profiles = pgTable('profiles', {
 })
 
 export const tickets = pgTable('tickets', {
-  id:          uuid('id').primaryKey().defaultRandom(),
-  title:       text('title').notNull(),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: text('organization_id'),
+  title:          text('title').notNull(),
   description: text('description').notNull(),
   category:    text('category').$type<Category>().notNull(),
   priority:    text('priority').$type<Priority>().notNull().default('medium'),

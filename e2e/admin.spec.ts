@@ -44,8 +44,8 @@ test.describe('Navigation', () => {
   test('navbar renders on all main pages', async ({ page }) => {
     for (const url of ['/', '/tickets', '/admin']) {
       await page.goto(url)
-      await page.waitForLoadState('networkidle')
-      await expect(page.getByRole('link', { name: 'HotFix' })).toBeVisible()
+      await page.waitForLoadState('load')
+      await expect(page.getByRole('link', { name: 'HotFix' })).toBeVisible({ timeout: 15000 })
       await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
     }

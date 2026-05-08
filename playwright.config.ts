@@ -5,12 +5,14 @@ loadEnv({ path: '.env.local' })
 
 export default defineConfig({
   testDir: './e2e',
-fullyParallel: false,
+  fullyParallel: false,
+  timeout: 60000,
   retries: process.env.CI ? 2 : 0,
   reporter: [['html', { open: 'never' }], ['list']],
 
   use: {
     baseURL: 'http://localhost:3000',
+    navigationTimeout: 90000,
     screenshot: 'on',
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
@@ -33,7 +35,7 @@ fullyParallel: false,
   ],
 
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev -- --webpack',
     url: 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 60000,

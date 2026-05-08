@@ -10,8 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { userId, orgId } = await auth()
+  if (!userId || !orgId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = getDb()
   const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, userId) })
@@ -29,7 +29,7 @@ export async function GET(
     .from(tickets)
     .leftJoin(creators,  eq(tickets.createdBy,  creators.id))
     .leftJoin(assignees, eq(tickets.assignedTo, assignees.id))
-    .where(eq(tickets.id, id))
+    .where(and(eq(tickets.id, id), eq(tickets.organizationId, orgId)))
 
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -92,14 +92,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { userId, orgId } = await auth()
+  if (!userId || !orgId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = getDb()
   const profile = await db.query.profiles.findFirst({ where: eq(profiles.id, userId) })
   const isStaff = profile?.role === 'admin' || profile?.role === 'technician'
 
-  const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id))
+  const [ticket] = await db.select().from(tickets)
+    .where(and(eq(tickets.id, id), eq(tickets.organizationId, orgId)))
   if (!ticket) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!isStaff && ticket.createdBy !== userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
