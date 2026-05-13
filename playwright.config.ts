@@ -6,13 +6,14 @@ loadEnv({ path: '.env.local' })
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
-  timeout: 60000,
+  workers: 1,         // sequential files prevents Neon cold-start collisions under concurrent load
+  timeout: 120000,
   retries: process.env.CI ? 2 : 0,
   reporter: [['html', { open: 'never' }], ['list']],
 
   use: {
     baseURL: 'http://localhost:3000',
-    navigationTimeout: 90000,
+    navigationTimeout: 300000,
     screenshot: 'on',
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
@@ -35,9 +36,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev -- --webpack',
+    command: 'next build --webpack && next start',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 60000,
+    reuseExistingServer: !process.env.CI,
+    timeout: 300000,  // build takes ~2-3 min
   },
 })

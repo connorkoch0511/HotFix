@@ -1,31 +1,11 @@
 import { test as setup, expect } from '@playwright/test'
 import { createClerkClient } from '@clerk/backend'
 import { neon } from '@neondatabase/serverless'
-import { Page } from '@playwright/test'
 import path from 'path'
 
 const authFile = path.join(__dirname, '.auth/user.json')
 
-setup.setTimeout(180000)
-
-// Navigate to a route and wait for specific content to confirm webpack compiled it.
-// Retries on failure so a mid-recompile empty-manifest response doesn't break setup.
-async function warmup(page: Page, url: string, expectedText: string, timeout = 30000) {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      await page.goto(url)
-      await page.waitForLoadState('load')
-      await page.waitForSelector(`text=${expectedText}`, { timeout })
-      return
-    } catch {
-      if (attempt < 3) await page.waitForTimeout(3000)
-    }
-  }
-  // Final attempt — throw if still not rendered
-  await page.goto(url)
-  await page.waitForLoadState('load')
-  await page.waitForSelector(`text=${expectedText}`, { timeout })
-}
+setup.setTimeout(120000)  // 2 min: sign-in + Neon seed queries only (no warmup needed with prod build)
 
 setup('authenticate', async ({ page }) => {
   const secretKey   = process.env.CLERK_SECRET_KEY
@@ -105,21 +85,23 @@ setup('authenticate', async ({ page }) => {
     `
   }
 
-  // Warm up every route so webpack compiles them before test workers start.
-  // warmup() waits for actual page content and retries if webpack is mid-recompile.
-  await warmup(page, '/',                        'Dashboard')
-  await warmup(page, '/tickets',                 'Tickets')
-  await warmup(page, '/tickets/new',             'New Ticket')
-  await warmup(page, '/admin',                   'Admin Panel')
-  await warmup(page, '/settings/organization',   'Organization Settings')
-  // Also warm up the catch-all subroute so Clerk's tab navigation compiles
-  await warmup(page, '/settings/organization/members', 'Organization Settings')
-  await warmup(page, '/org-setup',               'Get started with HotFix')
-
-  // Warm up the ticket detail route using the seeded ticket
-  const [firstTicket] = await sql`SELECT id FROM tickets WHERE organization_id = ${orgId} LIMIT 1`
-  if (firstTicket) {
-    await warmup(page, `/tickets/${firstTicket.id}`, 'Description')
+  // Ensure at least one change request with an audit entry exists for change management tests
+  const existingChange = await sql`SELECT id FROM change_requests WHERE organization_id = ${orgId} LIMIT 1`
+  let changeId: string
+  if (!existingChange.length) {
+    const [inserted] = await sql`
+      INSERT INTO change_requests (organization_id, title, description, type, risk_level, status, affected_systems, rollback_plan, created_by)
+      VALUES (${orgId}, 'Seeded change request', 'Created by global-setup for E2E change management tests.', 'normal', 'medium', 'pending_review', 'Test systems', 'Restore from backup', ${userId})
+      RETURNING id
+    `
+    changeId = inserted.id
+    await sql`INSERT INTO change_audit (change_id, user_id, action, changes) VALUES (${changeId}, ${userId}, 'created', '{}')`
+  } else {
+    changeId = existingChange[0].id
+    const existingAudit = await sql`SELECT id FROM change_audit WHERE change_id = ${changeId} LIMIT 1`
+    if (!existingAudit.length) {
+      await sql`INSERT INTO change_audit (change_id, user_id, action, changes) VALUES (${changeId}, ${userId}, 'created', '{}')`
+    }
   }
 
   await page.context().storageState({ path: authFile })

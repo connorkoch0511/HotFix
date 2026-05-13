@@ -4,10 +4,12 @@ import path from 'path'
 const SCREENSHOTS = path.join(__dirname, 'screenshots')
 
 test.describe('Tickets List', () => {
+  test.setTimeout(120000)
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets')
     await page.waitForLoadState('load')
-    await expect(page.getByRole('table')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 30000 })
   })
 
   test('renders ticket table with rows', async ({ page }) => {
@@ -22,7 +24,7 @@ test.describe('Tickets List', () => {
 
   test('filter by status narrows results', async ({ page }) => {
     await page.getByRole('link', { name: 'open' }).first().click()
-    await page.waitForURL(/status=open/, { timeout: 15000 })
+    await page.waitForURL(/status=open/, { timeout: 30000 })
 
     await expect(page).toHaveURL(/status=open/)
 
@@ -38,7 +40,7 @@ test.describe('Tickets List', () => {
 
   test('filter by priority', async ({ page }) => {
     await page.getByRole('link', { name: 'critical' }).click()
-    await page.waitForURL(/priority=critical/, { timeout: 15000 })
+    await page.waitForURL(/priority=critical/, { timeout: 30000 })
     await expect(page).toHaveURL(/priority=critical/)
 
     await page.screenshot({
@@ -50,13 +52,15 @@ test.describe('Tickets List', () => {
   test('clicking a ticket row opens the detail page', async ({ page }) => {
     const firstTicketLink = page.locator('tbody tr a').first()
     await firstTicketLink.click()
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 15000 })
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 180000 })
     await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+/)
-    await expect(page.getByText('Description')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Description')).toBeVisible({ timeout: 60000 })
   })
 })
 
 test.describe('New Ticket', () => {
+  test.setTimeout(180000)
+
   test('creates a ticket and redirects to detail', async ({ page }) => {
     await page.goto('/tickets/new')
     await page.waitForLoadState('load')
@@ -74,12 +78,12 @@ test.describe('New Ticket', () => {
 
     await page.getByRole('button', { name: /submit ticket/i }).click()
     // Confirm the form entered submitting state (guards against HMR page reload resetting the form)
-    await expect(page.getByRole('button', { name: /submitting/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /submitting/i })).toBeVisible({ timeout: 15000 })
 
     // Should redirect to the new ticket's detail page
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 20000 })
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 90000 })
     await page.waitForLoadState('load')
-    await expect(page.getByText(title)).toBeVisible({ timeout: 20000 })
+    await expect(page.getByText(title)).toBeVisible({ timeout: 60000 })
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'ticket-detail.png'),
@@ -89,13 +93,15 @@ test.describe('New Ticket', () => {
 })
 
 test.describe('Ticket Detail', () => {
+  test.setTimeout(360000)  // beforeEach navigation + Neon cold start can reach 180s
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets')
     await page.waitForLoadState('load')
-    await expect(page.locator('tbody tr a').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('tbody tr a').first()).toBeVisible({ timeout: 90000 })
     await page.locator('tbody tr a').first().click()
-    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 20000 })
-    await expect(page.getByText('Description')).toBeVisible({ timeout: 20000 })
+    await page.waitForURL(/\/tickets\/[0-9a-f-]+/, { timeout: 180000 })
+    await expect(page.getByText('Description')).toBeVisible({ timeout: 60000 })
   })
 
   test('shows description, comments, and audit tabs', async ({ page }) => {
@@ -124,7 +130,7 @@ test.describe('Ticket Detail', () => {
     await page.fill('textarea[placeholder*="comment"]', comment)
     await page.getByRole('button', { name: /^post$/i }).click()
 
-    await expect(page.getByText(comment)).toBeVisible({ timeout: 8000 })
+    await expect(page.getByText(comment)).toBeVisible({ timeout: 15000 })
 
     await page.screenshot({
       path: path.join(SCREENSHOTS, 'ticket-comment-posted.png'),
@@ -133,9 +139,9 @@ test.describe('Ticket Detail', () => {
   })
 
   test('sidebar shows ticket metadata', async ({ page }) => {
-    await expect(page.getByText('Status')).toBeVisible()
-    await expect(page.getByText('Priority')).toBeVisible()
-    await expect(page.getByText('Category')).toBeVisible()
-    await expect(page.getByText('Submitted by')).toBeVisible()
+    await expect(page.getByText('Status').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('Priority').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('Category').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('Submitted by').first()).toBeVisible({ timeout: 15000 })
   })
 })

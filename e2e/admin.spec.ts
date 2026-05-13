@@ -4,48 +4,40 @@ import path from 'path'
 const SCREENSHOTS = path.join(__dirname, 'screenshots')
 
 test.describe('Admin Panel', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/admin')
-    // Admin page fetches from Clerk + DB; allow up to 30s for the spinner to resolve
-    await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 30000 })
-  })
+  // Merged into one test: the admin page calls Clerk's getOrganizationMembershipList API
+  // which can take 8-15min on a cold start. One navigation is much better than three.
+  test.setTimeout(900000)
 
-  test('shows user management table', async ({ page }) => {
-    await expect(page.getByText('Admin Panel')).toBeVisible()
+  test('shows user management table, role permissions, and admin link', async ({ page }) => {
+    await page.goto('/admin', { timeout: 300000 })
+    await page.waitForLoadState('load')
+    await expect(page.getByRole('heading', { name: 'Admin Panel' })).toBeVisible({ timeout: 480000 })
+
     await expect(page.getByText('Manage user roles and access permissions.')).toBeVisible()
     await expect(page.getByRole('table')).toBeVisible()
 
-    await page.screenshot({
-      path: path.join(SCREENSHOTS, 'admin-panel.png'),
-      fullPage: true,
-    })
-  })
+    await page.screenshot({ path: path.join(SCREENSHOTS, 'admin-panel.png'), fullPage: true })
 
-  test('shows role permissions reference card', async ({ page }) => {
-    await expect(page.getByText('Role Permissions')).toBeVisible()
     // Scope to <p> elements to avoid matching <option> elements in role dropdowns
+    await expect(page.getByText('Role Permissions')).toBeVisible()
     await expect(page.locator('p', { hasText: 'end_user' })).toBeVisible()
     await expect(page.locator('p', { hasText: 'technician' })).toBeVisible()
     await expect(page.locator('p', { hasText: 'admin' }).first()).toBeVisible()
 
-    await page.screenshot({
-      path: path.join(SCREENSHOTS, 'admin-roles.png'),
-      fullPage: true,
-    })
-  })
+    await page.screenshot({ path: path.join(SCREENSHOTS, 'admin-roles.png'), fullPage: true })
 
-  test('admin link is visible in navbar', async ({ page }) => {
-    const adminLink = page.getByRole('link', { name: /admin/i })
-    await expect(adminLink).toBeVisible()
+    await expect(page.getByRole('link', { name: /admin/i })).toBeVisible()
   })
 })
 
 test.describe('Navigation', () => {
+  test.setTimeout(120000)
+
   test('navbar renders on all main pages', async ({ page }) => {
     for (const url of ['/', '/tickets', '/admin']) {
       await page.goto(url)
       await page.waitForLoadState('load')
-      await expect(page.getByRole('link', { name: 'HotFix' })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('link', { name: 'HotFix' })).toBeVisible({ timeout: 30000 })
       await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
     }

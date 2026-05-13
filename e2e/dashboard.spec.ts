@@ -4,9 +4,11 @@ import path from 'path'
 const SCREENSHOTS = path.join(__dirname, 'screenshots')
 
 test.describe('Dashboard', () => {
+  test.setTimeout(120000)
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 30000 })
   })
 
   test('shows all four stat cards', async ({ page }) => {
@@ -34,13 +36,13 @@ test.describe('Dashboard', () => {
 
   test('New Ticket button navigates to form', async ({ page }) => {
     await page.getByRole('link', { name: /new ticket/i }).first().click()
-    await page.waitForURL('/tickets/new', { timeout: 15000 })
+    await page.waitForURL('/tickets/new', { timeout: 180000 })
     await expect(page).toHaveURL('/tickets/new')
   })
 
   test('View all link navigates to ticket list', async ({ page }) => {
     await page.getByRole('link', { name: /view all/i }).click()
-    await page.waitForURL('/tickets', { timeout: 15000 })
+    await page.waitForURL('/tickets', { timeout: 180000 })
     await expect(page).toHaveURL('/tickets')
   })
 })
