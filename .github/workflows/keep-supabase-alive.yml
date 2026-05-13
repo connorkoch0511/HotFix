@@ -1,0 +1,26 @@
+name: Keep Supabase projects active
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # daily at 14:00 UTC (7am PDT)
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping RAG Document Q&A
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://ipkxvvfbvftduyrtlzst.supabase.co/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_RAG_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_RAG_ANON_KEY }}")
+          echo "RAG Document Q&A → HTTP $STATUS"
+          [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ] || exit 1
+
+      # Add more projects below by duplicating the step above.
+      # For each project:
+      #   1. Change the URL to https://<project-id>.supabase.co/rest/v1/
+      #   2. Add a new secret (e.g. SUPABASE_MYAPP_ANON_KEY) in
+      #      GitHub → Settings → Secrets and variables → Actions
+      #   3. Reference it as ${{ secrets.SUPABASE_MYAPP_ANON_KEY }}
